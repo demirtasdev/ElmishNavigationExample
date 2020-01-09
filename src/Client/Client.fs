@@ -21,8 +21,6 @@ let button txt href options =
           yield! options ]
         [ str txt ]
 
-type Msg = PersonNameChanged of string
-    
 module PersonPage =
     type Model =
         { Name : string }
@@ -38,16 +36,16 @@ module PersonPage =
             Heading.h3 [ Heading.IsSubtitle ] [ str (sprintf "Full Name: %s" model.Name) ]
         ]       
 
-let onKeyDown keyCode action =
-    OnKeyDown (fun ev ->
-        if ev.keyCode = keyCode then
-            ev.preventDefault()
-            action ev )
-
 module HomePage = 
     type Model = { Name : string }
+    
+    type Msg = PersonNameChanged of string
 
     let init () = { Name = "" }
+
+    let update msg model : _ * Cmd<Msg> =
+        match msg with
+        | PersonNameChanged name -> { model with Name = name }, Cmd.none
 
     let view (model: Model) dispatch =
         div [] [
@@ -85,9 +83,9 @@ module AddressPage =
           Postcode : string }
 
     let init () =
-      { BuildingNo = 41
+      { BuildingNo = 1
         City = "London"
-        Postcode = "P21 1XX"
+        Postcode = "EC2M 7PY"
         Street = "Liverpool St" }
 
     let view model dispatch =
@@ -108,9 +106,12 @@ type SubModel =
     | AddressPageModel of AddressPage.Model
     | PersonPageModel of PersonPage.Model
 
-type Model = 
+type Model =
     { CurrentPage: Page
       SubModel: SubModel }
+
+type Msg =
+    | HomePageMsg of HomePage.Msg
 
 let init page : Model * Cmd<Msg> =
     let page = page |> Option.defaultValue HomePage
@@ -125,8 +126,11 @@ let init page : Model * Cmd<Msg> =
       SubModel = subModel }, Cmd.none
 
 let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
-    match msg with
-    | PersonNameChanged name -> { model with SubModel = HomePageModel { Name = name } }, Cmd.none
+    match msg, model with
+    | HomePageMsg msg, { SubModel = HomePageModel m } ->
+        let newModel, cmd = HomePage.update msg m
+        { model with SubModel = HomePageModel newModel }, Cmd.map HomePageMsg cmd
+    | _ -> model, Cmd.none
 
 let view (model : Model) (dispatch : Msg -> unit) =
     let navigationButton text href page model =
@@ -142,15 +146,15 @@ let view (model : Model) (dispatch : Msg -> unit) =
             ] 
         ]
 
-        Container.container [] [
+        Container.container [ ] [
             Columns.columns [ Columns.Option.Props [ Style  [ Margin "3em" ] ] ] [ 
-                Column.column [] [ navigationButton "HOME PAGE" "#home" HomePage model ]
-                Column.column [] [ navigationButton "ADDRESS PAGE" "#address" AddressPage model ]
+                Column.column [ ] [ navigationButton "HOME PAGE" "#home" HomePage model ]
+                Column.column [ ] [ navigationButton "ADDRESS PAGE" "#address" AddressPage model ]
             ]
-            Columns.columns [] [ 
-                Column.column [] [ 
+            Columns.columns [ ] [ 
+                Column.column [ ] [ 
                     match model.SubModel with
-                    | HomePageModel m -> HomePage.view m dispatch 
+                    | HomePageModel m -> HomePage.view m (HomePageMsg >> dispatch)
                     | AddressPageModel m -> AddressPage.view m dispatch
                     | PersonPageModel m -> PersonPage.view m dispatch
                 ]
